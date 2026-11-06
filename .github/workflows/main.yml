@@ -29,8 +29,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@main
         with:
-            repository: roothide/Dopamine-roothide
-            submodules: recursive
+          submodules: recursive
 
       - name: Install Procursus
         uses: dhinakg/procursus-action@main
@@ -91,8 +90,8 @@ jobs:
           gmake -j$(sysctl -n hw.logicalcpu) NIGHTLY=1
           APP_VERSION="$(cat ./BaseBin/_external/basebin/.version)-$(cat ./BaseBin/_external/basebin/.version-roothide)"
           VERSION="(${APP_VERSION}-$(git rev-parse --short HEAD))-$(TZ=UTC git show -s --date=format-local:'%Y.%m.%d-%Z-%H.%M.%S' --format='%cd' HEAD)"
-          mv "./Application/Dopamine-roothide-${APP_VERSION}.ipa"  "./Application/roothide-Dopamine-${VERSION}.ipa"
-          mv "./Application/Dopamine-roothide-${APP_VERSION}.tipa" "./Application/roothide-Dopamine-${VERSION}.tipa"
+          mv "./Application/Dopamine-roothide-${APP_VERSION}.ipa"  "./Application/roothide-Dopamine-${VERSION}-DevModeFix.ipa"
+          mv "./Application/Dopamine-roothide-${APP_VERSION}.tipa" "./Application/roothide-Dopamine-${VERSION}-DevModeFix.tipa"
           echo "version=${VERSION}" >> $GITHUB_ENV
 
       - name: Upload Artifact
@@ -101,7 +100,7 @@ jobs:
         with:
           name: Dopamine
           path: |
-            ${{ github.workspace }}/Application/roothide-Dopamine-${{ env.version }}.ipa
+            ${{ github.workspace }}/Application/roothide-Dopamine-${{ env.version }}-DevModeFix.ipa
           archive: false
 
       - name: Upload Artifact(TIPA)
@@ -109,5 +108,5 @@ jobs:
         uses: actions/upload-artifact@main
         with:
           path: |
-            ${{ github.workspace }}/Application/roothide-Dopamine-${{ env.version }}.tipa
+            ${{ github.workspace }}/Application/roothide-Dopamine-${{ env.version }}-DevModeFix.tipa
           archive: false
