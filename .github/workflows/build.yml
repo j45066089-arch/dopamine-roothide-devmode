@@ -1,34 +1,42 @@
 name: "Build Dopamine roothide (DeveloperMode Patch)"
 
 on:
+  push:
+    branches:
+      - '*'
+    paths-ignore:
+      - ".gitignore"
+  pull_request:
+    branches:
+      - '*'
+    paths-ignore:
+      - ".gitignore"
   workflow_dispatch:
-    inputs:
-      build_tipa:
-        description: 'Build TIPA (signed IPA for TrollStore)'
-        required: true
-        default: true
-        type: boolean
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: macos-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
       - name: Xcode Setup
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
+
+      - name: Checkout
+        uses: actions/checkout@main
+        with:
+          submodules: recursive
 
       - name: Install Procursus
         uses: dhinakg/procursus-action@main
         with:
           packages: ldid findutils sed coreutils make
 
-      - name: Install GNU Make
+      - name: Install better GNU Make
         run: |
           brew install make
           echo "PATH=$(brew --prefix make)/libexec/gnubin:$PATH" >> $GITHUB_ENV
@@ -48,7 +56,7 @@ jobs:
           rm $THEOS/sdks/iPhoneOS16.5.sdk.tar
           cd $BASEDIR
 
-      - name: Build trustcache
+      - name: Build and Install trustcache
         run: |
           set -x
           git clone https://github.com/CRKatri/trustcache
@@ -58,7 +66,7 @@ jobs:
           gmake -j$(sysctl -n hw.logicalcpu) OPENSSL=1
           sudo cp trustcache /opt/procursus/bin/
 
-      - name: Set Version Info
+      - name: Set Environment Variables
         run: |
           set -x
           T2=$(TZ=UTC-2 date +'%Y%m%d_%H%M%S')
@@ -72,43 +80,33 @@ jobs:
         run: |
           brew install libarchive
 
-      - name: Build Dopamine
+      - name: Build
         run: |
           set -x
           export BASEDIR="$(pwd)"
           export THEOS="${BASEDIR}/theos"
-          
-          # Add builder credit
-          plutil -insert items.4 -xml "<dict><key>cell</key><string>PSGroupCell</string><key>label</key><string>BUILDER</string></dict>" ./Application/Dopamine/UI/Settings/Credits.plist 2>/dev/null || true
-          plutil -insert items.5 -xml "<dict><key>cell</key><string>PSGroupCell</string><key>headerCellClass</key><string>DOCreditsCell</string><key>names</key><array><dict><key>name</key><string>Maurice</string><key>link</key><string>https://github.com/Maurice</string></dict></array></dict>" ./Application/Dopamine/UI/Settings/Credits.plist 2>/dev/null || true
-          
-          # Build
+          plutil -insert items.4 -xml "<dict><key>cell</key><string>PSGroupCell</string><key>label</key><string>BUILDER</string></dict>" ./Application/Dopamine/UI/Settings/Credits.plist
+          plutil -insert items.5 -xml "<dict><key>cell</key><string>PSGroupCell</string><key>headerCellClass</key><string>DOCreditsCell</string><key>names</key><array><dict><key>name</key><string>${{ github.actor }}</string><key>link</key><string>https://github.com/${{ github.repository }}</string></dict></array></dict>" ./Application/Dopamine/UI/Settings/Credits.plist
           gmake -j$(sysctl -n hw.logicalcpu) NIGHTLY=1
-          
-          # Get version
           APP_VERSION="$(cat ./BaseBin/_external/basebin/.version)-$(cat ./BaseBin/_external/basebin/.version-roothide)"
-          VERSION="(${APP_VERSION}-${{ env.shorthash }})-$(TZ=UTC git show -s --date=format-local:'%Y.%m.%d-%Z-%H.%M.%S' --format='%cd' HEAD)"
+          VERSION="(${APP_VERSION}-$(git rev-parse --short HEAD))-$(TZ=UTC git show -s --date=format-local:'%Y.%m.%d-%Z-%H.%M.%S' --format='%cd' HEAD)"
+          mv "./Application/Dopamine-roothide-${APP_VERSION}.ipa"  "./Application/roothide-Dopamine-${VERSION}-DevModeFix.ipa"
+          mv "./Application/Dopamine-roothide-${APP_VERSION}.tipa" "./Application/roothide-Dopamine-${VERSION}-DevModeFix.tipa"
           echo "version=${VERSION}" >> $GITHUB_ENV
 
-      - name: Rename Artifacts
-        run: |
-          set -x
-          cd ./Application
-          mv "Dopamine-roothide-${{ env.version }}.ipa" "roothide-Dopamine-${{ env.version }}-DEVMOde-FIX.ipa" 2>/dev/null || true
-          mv "Dopamine-roothide-${{ env.version }}.tipa" "roothide-Dopamine-${{ env.version }}-DEVMOde-FIX.tipa" 2>/dev/null || true
-          ls -la
-
-      - name: Upload IPA
-        uses: actions/upload-artifact@v4
+      - name: Upload Artifact
+        id: dopamine-latest-upload
+        uses: actions/upload-artifact@main
         with:
-          name: Dopamine-IPA
-          path: ./Application/roothide-Dopamine-*-DEVMOde-FIX.ipa
-          if-no-files-found: warn
+          name: Dopamine
+          path: |
+            ${{ github.workspace }}/Application/roothide-Dopamine-${{ env.version }}-DevModeFix.ipa
+          archive: false
 
-      - name: Upload TIPA
-        uses: actions/upload-artifact@v4
-        if: ${{ inputs.build_tipa }}
+      - name: Upload Artifact(TIPA)
+        id: dopamine-latest-upload-tipa
+        uses: actions/upload-artifact@main
         with:
-          name: Dopamine-TIPA
-          path: ./Application/roothide-Dopamine-*-DEVMOde-FIX.tipa
-          if-no-files-found: warn
+          path: |
+            ${{ github.workspace }}/Application/roothide-Dopamine-${{ env.version }}-DevModeFix.tipa
+          archive: false
